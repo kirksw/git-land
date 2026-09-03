@@ -58,14 +58,14 @@ cp land.yaml.example land.yaml
 land --json
 ```
 
-`land --version` always identifies the source: `0.1` for tagged releases, `0.2.0-<sha>-nightly` for nightlies, `dev-<sha>` for flake builds from untagged checkouts.
+`land --version` always identifies the source: `0.1` for tagged releases, `dev-<sha>` for flake builds from untagged checkouts.
 
 ## Releases
 
 Releases are automated with GoReleaser:
 
 - Tagging `v*` (for example `git tag v0.1 && git push origin v0.1`) publishes a GitHub release with `land_<version>_<os>_<arch>.tar.gz` archives and a `SHA256SUMS` file; CI vets and tests before packaging.
-- A scheduled nightly workflow (03:00 UTC, also manually dispatchable) publishes prereleases under immutable tags like `v0.2.0-<sha>-nightly`; older nightly tags are pruned, so grab the newest prerelease for the latest build.
+- For unreleased changes on main, build directly from source: `nix run github:kirksw/git-land#land` or `go install github.com/kirksw/git-land/cmd/land@main`.
 - Every pull request cross-compiles all four targets so architecture breakage fails early.
 - Windows is not packaged yet; adding `windows/amd64` to the target lists is a one-line change once its behavior is tested.
 
