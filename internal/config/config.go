@@ -1,8 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -12,16 +14,10 @@ import (
 type Config struct {
 	Version     int         `yaml:"version"`
 	Base        string      `yaml:"base"`
-	Commits     Commits     `yaml:"commits"`
 	Validation  Validation  `yaml:"validation"`
 	Publish     Publish     `yaml:"publish"`
 	PullRequest PullRequest `yaml:"pull_request"`
 	Merge       Merge       `yaml:"merge"`
-}
-
-type Commits struct {
-	Style     string `yaml:"style"`
-	Structure string `yaml:"structure"`
 }
 
 type Validation struct {
@@ -89,25 +85,77 @@ func Template(base, lint, test, mergeMode string) []byte {
 	}
 	b.WriteString("publish:\n  strategy: pull_request\n\nmerge:\n")
 	b.WriteString("  # human: land stops at ready_for_merge and a human merges.\n")
-	b.WriteString("  # auto: land merges once every check passes.\n")
+	b.WriteString("  # auto: land merges once every check passes (then set method and\n")
+	b.WriteString("  # delete_branch below; they apply only to auto).\n")
 	fmt.Fprintf(&b, "  mode: %s\n", mergeMode)
-	b.WriteString("  # squash (default) | merge | rebase — applies when mode is auto.\n")
-	b.WriteString("  method: squash\n")
-	b.WriteString("  # Delete the branch locally and remotely after an auto-merge.\n")
-	b.WriteString("  delete_branch: true\n")
+	if mergeMode == "auto" {
+		b.WriteString("  # squash (default) | merge | rebase.\n")
+		b.WriteString("  method: squash\n")
+		b.WriteString("  # Delete the branch locally and remotely after an auto-merge.\n")
+		b.WriteString("  delete_branch: true\n")
+	}
 	return []byte(b.String())
 }
 
 // Parse decodes and validates policy bytes.
+// Unknown keys are rejected so typos and stale fields fail loudly instead
+// of silently configuring nothing, and contradictory combinations are
+// rejected so every parsed policy means what it says.
 func Parse(contents []byte) (Config, error) {
 	var cfg Config
-	if err := yaml.Unmarshal(contents, &cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(contents))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
 		return Config{}, err
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
+	var raw map[string]any
+	if err := yaml.Unmarshal(contents, &raw); err != nil {
+		return Config{}, err
+	}
+	if err := checkCombinations(cfg, raw); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// mergeKeys reports the merge keys the policy explicitly sets.
+func mergeKeys(raw map[string]any) []string {
+	section, ok := raw["merge"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	keys := make([]string, 0, len(section))
+	for key := range section {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// checkCombinations rejects settings that parse and type-check but have no
+// effect: merge policy applies only to pull_request publication, and the
+// auto-merge knobs apply only when merge.mode is auto.
+func checkCombinations(cfg Config, raw map[string]any) error {
+	merge := mergeKeys(raw)
+	if cfg.Publish.Strategy == "direct_push" {
+		if len(merge) > 0 {
+			return fmt.Errorf("publish.strategy direct_push cannot be combined with merge settings (merge.%s): merge policy applies only to pull_request publication", strings.Join(merge, ", merge."))
+		}
+		return nil
+	}
+	var ineffective []string
+	for _, key := range merge {
+		if key == "method" || key == "delete_branch" {
+			ineffective = append(ineffective, key)
+		}
+	}
+	if cfg.MergeMode() != "auto" && len(ineffective) > 0 {
+		return fmt.Errorf("merge.%s applies only when merge.mode is auto; remove it or set merge.mode: auto", strings.Join(ineffective, ", merge."))
+	}
+	return nil
 }
 
 func (c Config) Validate() error {

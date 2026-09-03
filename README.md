@@ -88,8 +88,7 @@ publish:
 
 merge:
   mode: human
-  method: squash
-  delete_branch: true
+  # method and delete_branch apply only when mode is auto.
 ```
 
 Supported publication strategies are `direct_push` and `pull_request`.
@@ -101,6 +100,8 @@ Merge policy:
 - `mode: auto` — land merges once every check passes (a pull request with no checks counts as passed).
 - `method` selects `squash` (default), `merge`, or `rebase` for auto-merges.
 - `delete_branch` removes the branch locally and remotely after an auto-merge.
+
+Parsing is strict so policies mean what they say: unknown keys fail loudly instead of silently configuring nothing, and contradictory combinations are rejected — `merge` requires `publish.strategy: pull_request`, and `method`/`delete_branch` require `merge.mode: auto`.
 
 ## Agent skill
 
