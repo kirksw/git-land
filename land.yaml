@@ -1,6 +1,7 @@
 version: 1
 base: main
 
+# Commands run before publishing; each must pass.
 validation:
   lint: go vet ./...
   test: go test ./...
@@ -9,6 +10,10 @@ publish:
   strategy: pull_request
 
 merge:
+  # human: land stops at ready_for_merge and a human merges.
+  # auto: land merges once every check passes.
   mode: human
+  # squash (default) | merge | rebase — applies when mode is auto.
   method: squash
+  # Delete the branch locally and remotely after an auto-merge.
   delete_branch: true

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/kirksw/git-land/internal/app"
+	"github.com/kirksw/git-land/internal/config"
 	"github.com/kirksw/git-land/internal/forge"
 	"github.com/spf13/cobra"
 )
@@ -78,9 +80,93 @@ func main() {
 	submitCmd := &cobra.Command{Use: "submit", Short: "Validate and publish the current branch", RunE: func(cmd *cobra.Command, args []string) error { return submit(cmd, opts, dryRun) }}
 	submitCmd.Flags().BoolVar(&dryRun, "dry-run", false, "validate and show eligibility without publishing")
 	root.AddCommand(submitCmd)
+	root.AddCommand(initCmd(&opts))
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func initCmd(opts *options) *cobra.Command {
+	var (
+		base  string
+		lint  string
+		test  string
+		merge string
+		force bool
+	)
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Write a starter land.yaml for this repository",
+		Long:  "init detects sensible defaults (integration base, Go validation commands) and writes a commented land.yaml. Review it, commit it, then run land.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := opts.config
+			if path == "" {
+				path = "land.yaml"
+			}
+			if _, err := os.Stat(path); err == nil && !force {
+				return fmt.Errorf("%s already exists; review it or rerun with --force to overwrite", path)
+			}
+			if base == "" {
+				base = detectBase()
+			}
+			if lint == "" && test == "" {
+				if _, err := os.Stat("go.mod"); err == nil {
+					lint, test = "go vet ./...", "go test ./..."
+				}
+			}
+			if merge == "" {
+				merge = "human"
+			}
+			if merge != "human" && merge != "auto" {
+				return fmt.Errorf("unsupported merge mode %q (human or auto)", merge)
+			}
+			contents := config.Template(base, lint, test, merge)
+			if err := os.WriteFile(path, contents, 0o644); err != nil {
+				return err
+			}
+			writeInit(opts.json, path, base, lint, test, merge)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&base, "base", "", "integration base branch (default: detected)")
+	cmd.Flags().StringVar(&lint, "lint", "", "lint command recorded in land.yaml (default: go vet for Go modules)")
+	cmd.Flags().StringVar(&test, "test", "", "test command recorded in land.yaml (default: go test for Go modules)")
+	cmd.Flags().StringVar(&merge, "merge", "human", "merge policy: human or auto")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing land.yaml")
+	return cmd
+}
+
+// detectBase prefers the remote default branch, then init.defaultBranch,
+// then "main"; init outside a repository still succeeds with that default.
+func detectBase() string {
+	if out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "origin/HEAD").Output(); err == nil {
+		if ref := strings.TrimPrefix(strings.TrimSpace(string(out)), "origin/"); ref != "" && ref != "HEAD" {
+			return ref
+		}
+	}
+	if out, err := exec.Command("git", "config", "--get", "init.defaultBranch").Output(); err == nil {
+		if branch := strings.TrimSpace(string(out)); branch != "" {
+			return branch
+		}
+	}
+	return "main"
+}
+
+func writeInit(asJSON bool, path, base, lint, test, merge string) {
+	hint := "review land.yaml (especially merge.mode), commit it, then run land"
+	if asJSON {
+		fmt.Printf("{\n  \"configPath\": %q,\n  \"base\": %q,\n  \"lint\": %q,\n  \"test\": %q,\n  \"mergeMode\": %q,\n  \"hint\": %q\n}\n", path, base, lint, test, merge, hint)
+		return
+	}
+	fmt.Printf("Wrote %s\n", path)
+	fmt.Printf("  base: %s\n", base)
+	if lint != "" || test != "" {
+		fmt.Printf("  validation: %s | %s\n", lint, test)
+	} else {
+		fmt.Printf("  validation: none detected; see the commented examples in land.yaml\n")
+	}
+	fmt.Printf("  merge: %s\n", merge)
+	fmt.Printf("Next: %s\n", hint)
 }
 
 func land(cmd *cobra.Command, opts options) error {
