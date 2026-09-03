@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -92,4 +93,47 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+func TestParseRejectsUnknownKeys(t *testing.T) {
+	_, err := Parse([]byte("version: 1\nbase: main\npublish:\n  strategy: pull_request\nvalidaton:\n  lint: go vet ./...\n"))
+	if err == nil || !strings.Contains(err.Error(), "validaton") {
+		t.Fatalf("unknown key must be named in the error, got: %v", err)
+	}
+	_, err = Parse([]byte("version: 1\nbase: main\npublish:\n  strategy: pull_request\ncommits:\n  style: conventional\n"))
+	if err == nil {
+		t.Fatal("removed commits schema must now fail loudly")
+	}
+}
+
+func TestParseRejectsContradictoryCombinations(t *testing.T) {
+	base := "version: 1\nbase: main\npublish:\n  strategy: %s\n"
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{"direct push with merge mode", "version: 1\nbase: main\npublish:\n  strategy: direct_push\nmerge:\n  mode: auto\n"},
+		{"direct push with merge knob", "version: 1\nbase: main\npublish:\n  strategy: direct_push\nmerge:\n  delete_branch: true\n"},
+		{"human mode with method", "version: 1\nbase: main\npublish:\n  strategy: pull_request\nmerge:\n  mode: human\n  method: rebase\n"},
+		{"human mode with delete_branch", "version: 1\nbase: main\npublish:\n  strategy: pull_request\nmerge:\n  mode: human\n  delete_branch: true\n"},
+		{"default mode with method", "version: 1\nbase: main\npublish:\n  strategy: pull_request\nmerge:\n  method: squash\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := Parse([]byte(tc.yaml)); err == nil {
+				t.Fatal("contradictory policy must be rejected")
+			}
+		})
+	}
+	// the legal shapes must keep parsing
+	for _, valid := range []string{
+		fmt.Sprintf(base, "direct_push"),
+		"version: 1\nbase: main\npublish:\n  strategy: pull_request\nmerge:\n  mode: human\n",
+		"version: 1\nbase: main\npublish:\n  strategy: pull_request\nmerge:\n  mode: auto\n  method: rebase\n  delete_branch: true\n",
+		"version: 1\nbase: main\npublish:\n  strategy: pull_request\n",
+	} {
+		if _, err := Parse([]byte(valid)); err != nil {
+			t.Fatalf("legal policy rejected: %v\n%s", err, valid)
+		}
+	}
 }

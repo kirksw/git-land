@@ -1,10 +1,9 @@
 version: 1
 base: main
 
-commits:
-  style: conventional
-  structure: atomic
-
+# Commands run before publishing; each must pass.
+# pre_commit: run `pre-commit run --all-files` (requires pre-commit).
+# format / build: extra commands, run between format and lint below.
 validation:
   pre_commit: false
   lint: go vet ./...
@@ -16,11 +15,11 @@ publish:
 pull_request:
   draft: false
 
+# Merge policy applies only to pull_request publication.
 merge:
   # human (default): land stops at ready_for_merge and a human merges.
   # auto: land merges once every check passes.
   mode: human
-  # squash (default) | merge | rebase — applies when mode is auto.
-  method: squash
-  # Delete the branch locally and remotely after an auto-merge.
-  delete_branch: true
+  # method and delete_branch apply only when mode is auto:
+  #   method: squash (default) | merge | rebase
+  #   delete_branch: true

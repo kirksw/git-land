@@ -11,9 +11,6 @@ publish:
 
 merge:
   # human: land stops at ready_for_merge and a human merges.
-  # auto: land merges once every check passes.
+  # auto: land merges once every check passes (then add method and
+  # delete_branch; they apply only to auto).
   mode: human
-  # squash (default) | merge | rebase — applies when mode is auto.
-  method: squash
-  # Delete the branch locally and remotely after an auto-merge.
-  delete_branch: true
