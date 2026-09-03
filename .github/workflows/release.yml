@@ -10,9 +10,6 @@ permissions:
 jobs:
   release:
     name: test, release
-    # Nightly prerelease tags also match the v* pattern; they are published
-    # by nightly.yml, not by this workflow.
-    if: ${{ !contains(github.ref_name, 'nightly') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -22,23 +22,9 @@ archives:
 checksum:
   name_template: SHA256SUMS
 
-# Nightly builds are produced by nightly.yml via `release --snapshot` with
-# GORELEASER_CURRENT_TAG pinned to a prerelease tag like
-# v0.2.0-nightly.20260903.<sha>; this template keeps binary, archive, and
-# release names identical to that tag. Those tags match the v* release
-# trigger, so release.yml guards against them explicitly.
-snapshot:
-  version_template: '{{ .Version }}'
-
 changelog:
   sort: asc
   filters:
     exclude:
       - '^docs:'
       - '^test:'
-
-# Prefer stable tags when detecting versions; nightly tags may still trim
-# changelog ranges in OSS goreleaser, which is cosmetic.
-git:
-  ignore_tags:
-    - '*nightly*'
