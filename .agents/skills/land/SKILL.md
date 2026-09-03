@@ -21,6 +21,8 @@ The command polls continuous integration until checks settle (default timeout 30
 
 Act on the report:
 
+- Missing `land.yaml` (error mentions `land init`) — bootstrap policy: run `land init --json` for detected defaults, then review `land.yaml` with the user — especially `merge.mode` (a human decision) and the validation commands — and commit it before rerunning.
+
 - `landed: true` — done.
 Report the `phase` (`merged` for pull requests, `landed` for direct pushes) and stop.
 - `blockedOn: dirty_tree` — commit the work with a descriptive message, then rerun.

@@ -71,7 +71,9 @@ Releases are automated with GoReleaser:
 
 ## Policy
 
-Copy and adapt `land.yaml.example` to create a repository policy.
+Bootstrap a policy with `land init`: it detects the integration base and, for Go modules, records `go vet ./...` and `go test ./...`, then writes a commented `land.yaml` to review and commit.
+Flags (`--base`, `--lint`, `--test`, `--merge`, `--force`) override the detection; without a policy every command fails with a pointer to `land init`.
+Alternatively, copy and adapt `land.yaml.example`.
 
 ```yaml
 version: 1

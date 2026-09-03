@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -48,6 +49,9 @@ type Merge struct {
 func Load(path string) (Config, error) {
 	contents, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return Config{}, fmt.Errorf("no landing policy at %s; run `land init` to create one", path)
+		}
 		return Config{}, fmt.Errorf("read %s: %w", path, err)
 	}
 	cfg, err := Parse(contents)
@@ -55,6 +59,43 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return cfg, nil
+}
+
+// Template renders a new, commented land.yaml for a repository.
+// Empty lint or test omits that command; empty base defaults to "main".
+func Template(base, lint, test, mergeMode string) []byte {
+	if base == "" {
+		base = "main"
+	}
+	if mergeMode == "" {
+		mergeMode = "human"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "version: 1\nbase: %s\n\n", base)
+	if lint == "" && test == "" {
+		b.WriteString("# Commands run before publishing; each must pass.\n")
+		b.WriteString("# validation:\n")
+		b.WriteString("#   lint: go vet ./...\n")
+		b.WriteString("#   test: go test ./...\n\n")
+	} else {
+		b.WriteString("# Commands run before publishing; each must pass.\nvalidation:\n")
+		if lint != "" {
+			fmt.Fprintf(&b, "  lint: %s\n", lint)
+		}
+		if test != "" {
+			fmt.Fprintf(&b, "  test: %s\n", test)
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("publish:\n  strategy: pull_request\n\nmerge:\n")
+	b.WriteString("  # human: land stops at ready_for_merge and a human merges.\n")
+	b.WriteString("  # auto: land merges once every check passes.\n")
+	fmt.Fprintf(&b, "  mode: %s\n", mergeMode)
+	b.WriteString("  # squash (default) | merge | rebase — applies when mode is auto.\n")
+	b.WriteString("  method: squash\n")
+	b.WriteString("  # Delete the branch locally and remotely after an auto-merge.\n")
+	b.WriteString("  delete_branch: true\n")
+	return []byte(b.String())
 }
 
 // Parse decodes and validates policy bytes.
