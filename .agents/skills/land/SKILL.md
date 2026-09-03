@@ -38,6 +38,7 @@ Inspect their logs with `gh run view` or `gh pr view --json`, fix the code, comm
 
 - `land` is the only mutation path for publishing: never `git push`, `gh pr create`, or `gh pr merge` by hand, and never force-push.
 - Never commit secrets, generated files, or unrelated changes just to clear `dirty_tree`; ask when in doubt.
+- Everything committed on the branch lands: land is content-blind and publishes every commit ahead of the base, so review `git log <base>..HEAD` before publishing and move unrelated work to its own branch first.
 - Use `land status --json`, `land validate --json`, `land verify --json`, or `land --no-wait --json` for inspection without waiting or side effects.
 - `land submit` publishes without CI follow-up; the bare `land` command is the full wait-and-land loop.
 - Merge policy comes from `land.yaml`: `merge.mode: human` (default) stops at `ready_for_merge`; `merge.mode: auto` lets land merge once every check passes.
