@@ -1,0 +1,26 @@
+version: 1
+base: main
+
+commits:
+  style: conventional
+  structure: atomic
+
+validation:
+  pre_commit: false
+  lint: go vet ./...
+  test: go test ./...
+
+publish:
+  strategy: pull_request
+
+pull_request:
+  draft: false
+
+merge:
+  # human (default): land stops at ready_for_merge and a human merges.
+  # auto: land merges once every check passes.
+  mode: human
+  # squash (default) | merge | rebase — applies when mode is auto.
+  method: squash
+  # Delete the branch locally and remotely after an auto-merge.
+  delete_branch: true

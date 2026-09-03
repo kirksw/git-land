@@ -1,0 +1,13 @@
+version: 1
+base: main
+validation:
+  - name: lint
+    command: go vet ./...
+  - name: test
+    command: go test ./...
+publish:
+  strategy: pull_request
+merge:
+  mode: human
+  method: squash
+  delete_branch: true

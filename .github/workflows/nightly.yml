@@ -1,0 +1,38 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  nightly:
+    name: test, nightly release
+    # Scheduled builds run only in the upstream repository, never forks.
+    if: github.repository == 'kirksw/git-land'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      # Publishes under an immutable tag like v0.2.0-<sha>-nightly as a
+      # prerelease; goreleaser prunes old nightly tags.
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          args: release --clean --nightly
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
